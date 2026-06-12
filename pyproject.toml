@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "GitSmartPipeline"
+dynamic = ["version"]
+requires-python = ">=3.11"
+description = "Python CLI for automated git staging, committing, versioning, and releases"
+license = { text = "MIT" }
+dependencies = ["click>=8.0"]
+
+[project.optional-dependencies]
+rich = ["rich>=13.0"]
+dev = ["pytest>=7.0", "pytest-cov"]
+
+[project.scripts]
+gsp = "gsp.cli:main"
+
+[tool.hatch.version]
+path = "gsp/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["gsp"]

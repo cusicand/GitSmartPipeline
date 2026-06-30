@@ -153,15 +153,23 @@ gsp commit -p docs -m "add usage examples to README"
 Pushes commits (and optionally tags) to a remote.
 
 ```bash
-gsp push [--remote REMOTE] [--branch BRANCH] [--tags] [--repo PATH]
+gsp push [--remote REMOTE] [--branch BRANCH] [--tags] [--all-tags] [--repo PATH]
 ```
+
+`--tags` pushes **only the current version's tag** (e.g. `vX.Y.Z`), so it never
+errors on tags already present on the remote. Use `--all-tags` for the old
+`git push --tags` behaviour (every local tag), which may report harmless
+rejections for tags the remote already has.
 
 ```bash
 # Push current branch to origin
 gsp push
 
-# Push and include all tags
+# Push the current version's tag (e.g. v0.1.0) — recommended
 gsp push --tags
+
+# Push every local tag (legacy behaviour)
+gsp push --all-tags
 
 # Push to a different remote
 gsp push --remote upstream
@@ -296,7 +304,7 @@ Orchestrates all steps in a fixed order:
 3. bump         →  write new version + optionally update CHANGELOG.md
                    git commit "bump: x.y.z → a.b.c"
 4. tag          →  git tag -a vA.B.C
-5. push         →  git push origin main  +  git push --tags
+5. push         →  git push origin main  +  git push origin vA.B.C
 6. release      →  gh release create vA.B.C
 ```
 

@@ -19,6 +19,7 @@ from .git_ops import (
     get_current_branch,
     get_repo_root,
     push,
+    push_tag,
     push_tags,
     stage_files,
     tag_exists,
@@ -104,18 +105,31 @@ def commit_cmd(prefix: str, message: str, repo: str) -> None:
 @click.option("--remote", default="origin", show_default=True)
 @click.option("--branch", default=None, help="Branch to push (defaults to current).")
 @click.option("--tags", "with_tags", is_flag=True, default=False,
-              help="Also push tags.")
+              help="Also push the current version's tag.")
+@click.option("--all-tags", "all_tags", is_flag=True, default=False,
+              help="Push every local tag (git push --tags); may report rejections "
+                   "for tags already on the remote.")
+@click.option("--version-file", default=None, type=click.Path(),
+              help="Path to the file containing __version__. Auto-detected if omitted.")
 @click.option("--repo", default=".", show_default=True,
               type=click.Path(exists=True, file_okay=False))
-def push_cmd(remote: str, branch: Optional[str], with_tags: bool, repo: str) -> None:
+def push_cmd(remote: str, branch: Optional[str], with_tags: bool, all_tags: bool,
+             version_file: Optional[str], repo: str) -> None:
     """Push commits (and optionally tags) to a remote."""
     cwd = get_repo_root(Path(repo))
     try:
         push(cwd, remote=remote, branch=branch)
         con.success(f"Pushed to {remote}/{branch or get_current_branch(cwd)}")
-        if with_tags:
+        if all_tags:
             push_tags(cwd, remote=remote)
-            con.success(f"Pushed tags to {remote}")
+            con.success(f"Pushed all tags to {remote}")
+        elif with_tags:
+            tag = format_tag(read_version(_resolve_version_file(version_file, cwd)))
+            if not tag_exists(tag, cwd):
+                con.warn(f"Tag {tag} does not exist locally — run `gsp tag` first")
+            else:
+                push_tag(cwd, tag, remote=remote)
+                con.success(f"Pushed tag {tag} to {remote}")
     except GitError as exc:
         con.error(str(exc))
         raise SystemExit(1) from exc
@@ -365,7 +379,7 @@ def changelog_cmd(
               help="Version component to bump after committing.")
 @click.option("--auto-bump", is_flag=True, default=False,
               help="Auto-determine bump level (patch/minor) from commits since last tag.")
-@click.option("--update-changelog", is_flag=True, default=False,
+@click.option("--update-changelog", "update_changelog_flag", is_flag=True, default=False,
               help="Generate/update CHANGELOG.md as part of the bump commit.")
 @click.option("--prefix", type=click.Choice(VALID_PREFIXES), default="fix",
               show_default=True, help="Conventional commit prefix.")
@@ -383,7 +397,7 @@ def ship_cmd(
     message: str,
     bump_part: Optional[str],
     auto_bump: bool,
-    update_changelog: bool,
+    update_changelog_flag: bool,
     prefix: str,
     remote: str,
     no_push: bool,
@@ -425,7 +439,7 @@ def ship_cmd(
     do_push = not no_push
     # A release requires the tag to have been pushed first.
     do_release = do_tag and do_push and not no_release
-    do_changelog = update_changelog and bump_part is not None
+    do_changelog = update_changelog_flag and bump_part is not None
 
     # Determine total steps for progress display
     total = sum([
@@ -547,7 +561,7 @@ def ship_cmd(
             try:
                 push(cwd, remote=remote)
                 if do_tag:
-                    push_tags(cwd, remote=remote)
+                    push_tag(cwd, tag_name, remote=remote)
             except GitError as exc:
                 con.error(str(exc))
                 raise SystemExit(1) from exc
@@ -555,7 +569,7 @@ def ship_cmd(
         else:
             con.dry_run(f"git push {remote} {branch}")
             if do_tag:
-                con.dry_run(f"git push {remote} --tags")
+                con.dry_run(f"git push {remote} {tag_name}")
 
     # ── Step 6: GitHub release ────────────────────────────────────────────
     if do_release:

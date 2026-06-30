@@ -118,6 +118,12 @@ def push(cwd: Path, remote: str = "origin", branch: str | None = None) -> None:
     run_git(["push", remote, branch], cwd=cwd)
 
 
+def push_tag(cwd: Path, tag: str, remote: str = "origin") -> None:
+    """Push a single tag, avoiding the rejections that `--tags` raises on
+    tags already present on the remote."""
+    run_git(["push", remote, tag], cwd=cwd)
+
+
 def push_tags(cwd: Path, remote: str = "origin") -> None:
     run_git(["push", remote, "--tags"], cwd=cwd)
 

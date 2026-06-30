@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 from click.testing import CliRunner
 
@@ -46,6 +47,44 @@ class TestBumpCLI:
     def test_bump_invalid_part(self) -> None:
         result = runner.invoke(main, ["bump", "--part", "mega"])
         assert result.exit_code != 0
+
+
+class TestPushCLI:
+    def test_tags_pushes_only_version_tag(self, tmp_git_repo: Path) -> None:
+        with (
+            patch("gsp.cli.push") as mock_push,
+            patch("gsp.cli.push_tag") as mock_push_tag,
+            patch("gsp.cli.push_tags") as mock_push_tags,
+            patch("gsp.cli.tag_exists", return_value=True),
+        ):
+            result = runner.invoke(main, ["push", "--tags", "--repo", str(tmp_git_repo)])
+        assert result.exit_code == 0, result.output
+        mock_push.assert_called_once()
+        mock_push_tag.assert_called_once()
+        # push_tag(cwd, tag, remote=...) → the version tag is the 2nd positional arg
+        assert mock_push_tag.call_args.args[1] == "v0.1.0"
+        mock_push_tags.assert_not_called()
+
+    def test_all_tags_pushes_every_tag(self, tmp_git_repo: Path) -> None:
+        with (
+            patch("gsp.cli.push"),
+            patch("gsp.cli.push_tag") as mock_push_tag,
+            patch("gsp.cli.push_tags") as mock_push_tags,
+        ):
+            result = runner.invoke(main, ["push", "--all-tags", "--repo", str(tmp_git_repo)])
+        assert result.exit_code == 0, result.output
+        mock_push_tags.assert_called_once()
+        mock_push_tag.assert_not_called()
+
+    def test_tags_warns_when_version_tag_missing(self, tmp_git_repo: Path) -> None:
+        with (
+            patch("gsp.cli.push"),
+            patch("gsp.cli.push_tag") as mock_push_tag,
+            patch("gsp.cli.tag_exists", return_value=False),
+        ):
+            result = runner.invoke(main, ["push", "--tags", "--repo", str(tmp_git_repo)])
+        assert result.exit_code == 0, result.output
+        mock_push_tag.assert_not_called()
 
 
 class TestShipCLI:

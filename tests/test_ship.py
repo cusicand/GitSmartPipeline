@@ -28,7 +28,7 @@ def _base_args(tmp_git_repo: Path, extra: list[str] | None = None) -> list[str]:
 
 
 @patch("gsp.cli.create_github_release", return_value="https://github.com/r/r/releases/v0.1.1")
-@patch("gsp.cli.push_tags")
+@patch("gsp.cli.push_tag")
 @patch("gsp.cli.push")
 @patch("gsp.cli.create_tag")
 @patch("gsp.cli.gh_available", return_value=True)
@@ -38,15 +38,31 @@ class TestShipOrchestration:
         mock_gh: MagicMock,
         mock_tag: MagicMock,
         mock_push: MagicMock,
-        mock_push_tags: MagicMock,
+        mock_push_tag: MagicMock,
         mock_release: MagicMock,
         tmp_git_repo: Path,
     ) -> None:
         result = runner.invoke(main, _base_args(tmp_git_repo))
         assert result.exit_code == 0, result.output
         mock_push.assert_called_once()
-        mock_push_tags.assert_called_once()
+        mock_push_tag.assert_called_once()
         mock_tag.assert_called_once()
+        mock_release.assert_called_once()
+
+    def test_update_changelog_writes_file(
+        self,
+        mock_gh: MagicMock,
+        mock_tag: MagicMock,
+        mock_push: MagicMock,
+        mock_push_tag: MagicMock,
+        mock_release: MagicMock,
+        tmp_git_repo: Path,
+    ) -> None:
+        # Non-dry-run path: exercises the real update_changelog() call so the
+        # flag/function name collision can't regress.
+        result = runner.invoke(main, _base_args(tmp_git_repo, ["--update-changelog"]))
+        assert result.exit_code == 0, result.output
+        assert (tmp_git_repo / "CHANGELOG.md").exists()
         mock_release.assert_called_once()
 
     def test_no_push_skips_push_and_release(
@@ -54,14 +70,14 @@ class TestShipOrchestration:
         mock_gh: MagicMock,
         mock_tag: MagicMock,
         mock_push: MagicMock,
-        mock_push_tags: MagicMock,
+        mock_push_tag: MagicMock,
         mock_release: MagicMock,
         tmp_git_repo: Path,
     ) -> None:
         result = runner.invoke(main, _base_args(tmp_git_repo, ["--no-push"]))
         assert result.exit_code == 0, result.output
         mock_push.assert_not_called()
-        mock_push_tags.assert_not_called()
+        mock_push_tag.assert_not_called()
         mock_release.assert_not_called()
 
     def test_no_release_flag_skips_gh_only(
@@ -69,7 +85,7 @@ class TestShipOrchestration:
         mock_gh: MagicMock,
         mock_tag: MagicMock,
         mock_push: MagicMock,
-        mock_push_tags: MagicMock,
+        mock_push_tag: MagicMock,
         mock_release: MagicMock,
         tmp_git_repo: Path,
     ) -> None:
@@ -83,7 +99,7 @@ class TestShipOrchestration:
         mock_gh: MagicMock,
         mock_tag: MagicMock,
         mock_push: MagicMock,
-        mock_push_tags: MagicMock,
+        mock_push_tag: MagicMock,
         mock_release: MagicMock,
         tmp_git_repo: Path,
     ) -> None:
@@ -97,7 +113,7 @@ class TestShipOrchestration:
         mock_gh: MagicMock,
         mock_tag: MagicMock,
         mock_push: MagicMock,
-        mock_push_tags: MagicMock,
+        mock_push_tag: MagicMock,
         mock_release: MagicMock,
         tmp_git_repo: Path,
     ) -> None:
@@ -126,7 +142,7 @@ class TestGhNotAvailable:
     ) -> None:
         with (
             patch("gsp.cli.push"),
-            patch("gsp.cli.push_tags"),
+            patch("gsp.cli.push_tag"),
             patch("gsp.cli.create_tag"),
         ):
             result = runner.invoke(main, _base_args(tmp_git_repo, ["--no-release"]))
